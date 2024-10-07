@@ -2,8 +2,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.awt.geom.RoundRectangle2D;
 import javax.swing.Timer;
 
 public class ModernScientificCalculator extends JFrame {
@@ -15,11 +14,6 @@ public class ModernScientificCalculator extends JFrame {
     private JPanel buttonPanel;
     private Color accentColor = new Color(64, 156, 255);
     private boolean isDarkMode = false;
-    private Map<JButton, Point> originalButtonPositions = new HashMap<>();
-    
-    // Animation related fields
-    private Timer buttonAnimationTimer;
-    private int animationDuration = 200; // milliseconds
     
     public ModernScientificCalculator() {
         setTitle("Scientific Calculator");
@@ -54,7 +48,7 @@ public class ModernScientificCalculator extends JFrame {
             "2ⁿᵈ", "x²", "x³", "xʸ", "eˣ",
             "sin", "cos", "tan", "log", "ln",
             "sinh", "cosh", "tanh", "10ˣ", "√",
-            "(", ")", "n!", "±", "C",
+            "(", ")", "n!", "±", "⌫",
             "7", "8", "9", "÷", "mod",
             "4", "5", "6", "×", "%",
             "1", "2", "3", "−", "1/x",
@@ -64,21 +58,15 @@ public class ModernScientificCalculator extends JFrame {
         for (String buttonText : scientificButtons) {
             JButton button = createButton(buttonText);
             buttonPanel.add(button);
-            
-            // Store original position for animation
-            originalButtonPositions.put(button, button.getLocation());
         }
         
         add(buttonPanel, BorderLayout.CENTER);
         
         // Theme toggle button with icon
-        JButton themeToggle = new JButton("\uD83C\uDF19"); // Moon emoji
+        JButton themeToggle = new CircularButton("\uD83C\uDF19"); // Moon emoji
         themeToggle.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
-        themeToggle.setFocusPainted(false);
-        themeToggle.setBorderPainted(false);
         themeToggle.addActionListener(e -> toggleTheme());
         
-        // Add theme toggle to a toolbar
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.setOpaque(false);
@@ -87,66 +75,89 @@ public class ModernScientificCalculator extends JFrame {
         toolbar.add(themeToggle);
         add(toolbar, BorderLayout.SOUTH);
         
-        setupButtonAnimations();
         applyTheme();
         setSize(400, 600);
     }
     
-    private void setupButtonAnimations() {
-        buttonAnimationTimer = new Timer(16, new ActionListener() {
-            private long startTime;
-            private JButton activeButton;
-            
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                long elapsed = System.currentTimeMillis() - startTime;
-                float progress = Math.min(1f, elapsed / (float) animationDuration);
-                
-                if (progress >= 1f) {
-                    buttonAnimationTimer.stop();
-                    if (activeButton != null) {
-                        activeButton.setBackground(getButtonColor());
-                    }
-                    return;
-                }
-                
-                if (activeButton != null) {
-                    Color startColor = getButtonColor();
-                    Color endColor = accentColor;
-                    Color currentColor = interpolateColor(startColor, endColor, progress);
-                    activeButton.setBackground(currentColor);
-                }
+    // Custom button class for circular buttons
+    private class CircularButton extends JButton {
+        public CircularButton(String label) {
+            super(label);
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setBorderPainted(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (getModel().isArmed()) {
+                g.setColor(accentColor);
+            } else {
+                g.setColor(getBackground());
             }
             
-            public void startAnimation(JButton button) {
-                this.activeButton = button;
-                startTime = System.currentTimeMillis();
-                buttonAnimationTimer.start();
-            }
-        });
-    }
-    
-    private Color interpolateColor(Color c1, Color c2, float fraction) {
-        int red = (int) (c1.getRed() + (c2.getRed() - c1.getRed()) * fraction);
-        int green = (int) (c1.getGreen() + (c2.getGreen() - c1.getGreen()) * fraction);
-        int blue = (int) (c1.getBlue() + (c2.getBlue() - c1.getBlue()) * fraction);
-        return new Color(red, green, blue);
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            g2d.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 25, 25);
+            
+            super.paintComponent(g);
+        }
     }
     
     private JButton createButton(String label) {
-        JButton button = new JButton(label);
+        JButton button = new CircularButton(label);
         button.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-        button.setFocusPainted(false);
-        button.setBorderPainted(false);
-        button.addActionListener(new ButtonClickListener());
+        
+        // Add press animation
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                ((Timer)buttonAnimationTimer).getActionListeners()[0].actionPerformed(
-                    new ActionEvent(button, ActionEvent.ACTION_PERFORMED, ""));
+                animateButtonPress((JButton)e.getSource());
+            }
+            
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                animateButtonRelease((JButton)e.getSource());
             }
         });
+        
+        button.addActionListener(new ButtonClickListener());
         return button;
+    }
+    
+    private void animateButtonPress(JButton button) {
+        Timer timer = new Timer(5, null);
+        timer.addActionListener(new ActionListener() {
+            private int frame = 0;
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (frame < 5) {
+                    button.setLocation(button.getX(), button.getY() + 1);
+                    frame++;
+                } else {
+                    ((Timer)e.getSource()).stop();
+                }
+            }
+        });
+        timer.start();
+    }
+    
+    private void animateButtonRelease(JButton button) {
+        Timer timer = new Timer(5, null);
+        timer.addActionListener(new ActionListener() {
+            private int frame = 0;
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (frame < 5) {
+                    button.setLocation(button.getX(), button.getY() - 1);
+                    frame++;
+                } else {
+                    ((Timer)e.getSource()).stop();
+                }
+            }
+        });
+        timer.start();
     }
     
     private void toggleTheme() {
@@ -154,16 +165,10 @@ public class ModernScientificCalculator extends JFrame {
         applyTheme();
     }
     
-    private Color getButtonColor() {
-        return isDarkMode ? new Color(60, 60, 60) : new Color(240, 240, 240);
-    }
-    
     private void applyTheme() {
         Color bgColor = isDarkMode ? new Color(30, 30, 30) : new Color(250, 250, 250);
         Color fgColor = isDarkMode ? Color.WHITE : Color.BLACK;
-        Color buttonColor = getButtonColor();
-        
-        UIManager.put("Button.select", accentColor);
+        Color buttonColor = isDarkMode ? new Color(60, 60, 60) : new Color(240, 240, 240);
         
         buttonPanel.setBackground(bgColor);
         display.setBackground(bgColor);
@@ -185,11 +190,11 @@ public class ModernScientificCalculator extends JFrame {
     private class ButtonClickListener implements ActionListener {
         public void actionPerformed(ActionEvent event) {
             String command = event.getActionCommand();
-            JButton button = (JButton) event.getSource();
             
-            // Start animation
-            ((Timer)buttonAnimationTimer).getActionListeners()[0].actionPerformed(
-                new ActionEvent(button, ActionEvent.ACTION_PERFORMED, ""));
+            if (command.equals("⌫")) {
+                handleBackspace();
+                return;
+            }
             
             if (command.matches("[0-9.]")) {
                 if (start) {
@@ -213,11 +218,21 @@ public class ModernScientificCalculator extends JFrame {
                 }
             }
             
-            // Update history
             if (!command.equals("=")) {
                 historyLabel.setText(historyLabel.getText() + " " + command);
             } else {
                 historyLabel.setText("");
+            }
+        }
+    }
+    
+    private void handleBackspace() {
+        String currentText = display.getText();
+        if (currentText.length() > 0) {
+            display.setText(currentText.substring(0, currentText.length() - 1));
+            if (display.getText().isEmpty()) {
+                display.setText("0");
+                start = true;
             }
         }
     }
@@ -248,7 +263,6 @@ public class ModernScientificCalculator extends JFrame {
             case "10ˣ": result = Math.pow(10, x); break;
             case "eˣ": result = Math.exp(x); break;
             case "mod": result %= x; break;
-            case "C": result = 0; historyLabel.setText(""); break;
         }
         display.setText(String.format("%.8f", result).replaceAll("\\.?0+$", ""));
     }
